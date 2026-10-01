@@ -1,0 +1,5 @@
+# GLib/libqmi keep process-lifetime caches (type system, quarks) that are
+# intentionally never freed; they are not leaks in OUR code.
+leak:libglib-2.0.so
+leak:libgobject-2.0.so
+leak:libqmi-glib.so

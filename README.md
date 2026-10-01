@@ -102,11 +102,26 @@ These are real parts of the job description that this lab **does not** implement
 They are not faked.
 
 * **MHI / PCIe modem drivers.** MHI (Modem Host Interface) is the Qualcomm transport
-  used by PCIe M.2 modems. The host maps the device's BARs, sets up ring buffers (transfer
-  and event rings in host memory) and channels, and the modem DMAs into them. Doing this
-  needs real PCIe modem hardware and loading kernel modules (`mhi`, `mhi_pci_generic`,
-  `mhi_wwan_ctrl`, `mhi_net`). The Rancher Desktop VM has neither, and a container cannot
-  load modules into the shared kernel.
+  used by PCIe M.2 modems (transfer/event rings in host memory, doorbells, channels;
+  drivers `mhi`, `mhi_pci_generic`, `mhi_wwan_ctrl`, `mhi_net`). Real MHI is **still not
+  implemented**: there is no MHI device to emulate. What *is* now covered, in `kernel/`
+  (optional stage `MLAB_KERNEL=1 ./run-tests.sh`), and verified passing:
+  `fake_mhi_modem.ko` (misc char device `/dev/fake_qmi0` speaking real QMUX frames, poll,
+  `_IOR/_IOW/_IO` ioctls, MHI-like state names only) and `edu_pci.ko` (a real PCI driver
+  bound to QEMU's emulated `edu` PCIe device: BAR0 MMIO, MSI via GICv3 ITS). Both are
+  loaded into a real Debian `6.1.0-53-arm64` kernel booted under `qemu-system-aarch64`
+  (TCG, no KVM) inside Docker. They were **not** loaded into the Rancher VM's own
+  `6.6.119-0-virt` kernel: matching headers are no longer on the Alpine mirrors (only
+  6.6.142), and loading into the shared kernel was not permitted. `HOST_INSMOD=1
+  ./kernel/run-kernel-tests.sh` is an opt-in attempt that is expected to be refused on
+  vermagic mismatch.
+* **Android.** `android/` (optional stage `MLAB_ANDROID=1`) cross-compiles the lab with NDK
+  r27c for aarch64 bionic, compiles AIDL (`aidl --lang=ndk`) stubs plus a `BnModemControl`
+  service and a JNI `libmodemjni.so`. Only the **static** bionic binaries were executed
+  (`hal_smoke`, `modem_manager` on plain Linux). **Never executed:** the dynamic bionic
+  binary (no `/system/bin/linker64`), the AIDL service, the JNI library, servicemanager
+  registration (needs AOSP platform headers). redroid cannot boot (VM kernel has no
+  binder) and the Android emulator needs KVM/HVF + system images.
   *How it relates:* on such a modem, the `mhi_wwan_ctrl` driver exposes the **QMI channel**
   as `/dev/wwan0qmi0` through the kernel WWAN subsystem, and `mhi_net` exposes the data path
   as a netdev such as `mhi_hwip0` / `wwan0`. The **same QMUX bytes** this lab encodes are

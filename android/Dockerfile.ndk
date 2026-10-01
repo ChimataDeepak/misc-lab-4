@@ -1,0 +1,19 @@
+# Android cross-build toolchain image. MUST be built with --platform linux/amd64:
+# Google ships the NDK and build-tools (aidl) only as x86_64 Linux host binaries,
+# so on an arm64 Docker VM they run under qemu-x86_64 emulation (binfmt_misc).
+FROM debian:bookworm
+# Same https-mirror workaround as ../Dockerfile (plain http mirrors are 403 here).
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get -o Acquire::https::Verify-Peer=false update \
+ && apt-get -o Acquire::https::Verify-Peer=false install -y --no-install-recommends ca-certificates \
+ && apt-get update && apt-get install -y --no-install-recommends \
+      curl unzip file binutils openjdk-17-jdk-headless \
+ && rm -rf /var/lib/apt/lists/*
+ARG NDK=r27c
+RUN cd /opt && curl -fsSLo ndk.zip https://dl.google.com/android/repository/android-ndk-${NDK}-linux.zip \
+ && unzip -q ndk.zip && rm ndk.zip && ln -s /opt/android-ndk-${NDK} /opt/ndk
+# build-tools ships the real `aidl` compiler (same one AOSP uses).
+RUN cd /opt && curl -fsSLo bt.zip https://dl.google.com/android/repository/build-tools_r34-linux.zip \
+ && unzip -q bt.zip && rm bt.zip && ln -s /opt/android-14 /opt/build-tools
+ENV NDK=/opt/ndk PATH=/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:/opt/build-tools:$PATH
+WORKDIR /src

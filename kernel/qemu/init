@@ -1,0 +1,22 @@
+#!/bin/busybox sh
+# PID 1 inside the QEMU guest: load the modules, run the tests, power off.
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+echo "GUEST: kernel $(uname -r)"
+echo "GUEST: PCI devices:"; for d in /sys/bus/pci/devices/*; do echo "  $(basename $d) $(cat $d/vendor):$(cat $d/device)"; done
+rc=0
+insmod /fake_mhi_modem.ko && echo "GUEST: insmod fake_mhi_modem OK" || { echo "GUEST: insmod fake_mhi_modem FAILED"; rc=1; }
+ls -l /dev/fake_qmi0
+/test_fake_qmi || rc=1
+rmmod fake_mhi_modem && echo "GUEST: rmmod fake_mhi_modem OK" || rc=1
+insmod /edu_pci.ko && echo "GUEST: insmod edu_pci OK" || { echo "GUEST: insmod edu_pci FAILED"; rc=1; }
+echo "GUEST: driver bound to: $(basename $(readlink /sys/bus/pci/drivers/edu_pci/0* 2>/dev/null) 2>/dev/null)"
+grep edu_pci /proc/interrupts
+/test_edu || rc=1
+grep edu_pci /proc/interrupts
+rmmod edu_pci && echo "GUEST: rmmod edu_pci OK" || rc=1
+dmesg | grep -E "fake_mhi|edu_pci|taint" | sed 's/^/GUEST dmesg: /'
+echo "GUEST-RESULT: rc=$rc"
+poweroff -f

@@ -1,0 +1,1 @@
+obj-m := fake_mhi_modem.o

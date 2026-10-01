@@ -40,8 +40,14 @@ class NetlinkIoctl : public ::testing::Test {
 protected:
     void SetUp() override {
         std::system((std::string("ip link del ") + kIf + " 2>/dev/null").c_str());
-        if (std::system((std::string("ip link add ") + kIf + " type dummy").c_str()) != 0)
+        if (std::system((std::string("ip link add ") + kIf + " type dummy").c_str()) != 0) {
+            // ctest counts a skip as a pass, so under run-tests.sh (which sets
+            // REQUIRE_NET_ADMIN=1) a missing capability must be a hard FAILURE.
+            const char* req = std::getenv("REQUIRE_NET_ADMIN");
+            if (req && std::string(req) == "1")
+                FAIL() << "REQUIRE_NET_ADMIN=1 but cannot create dummy link";
             GTEST_SKIP() << "cannot create dummy link (need --cap-add NET_ADMIN)";
+        }
         fd_ = rtnl_open(RTMGRP_LINK, 1);
         ASSERT_GE(fd_, 0);
     }

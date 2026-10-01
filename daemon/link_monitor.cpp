@@ -39,7 +39,15 @@ void LinkMonitor::on_readable() {
             static_cast<LinkMonitor*>(self)->deliver(*l);
         }, this);
         if (rc == -EAGAIN || rc == -EWOULDBLOCK) return;
-        if (rc == -ENOBUFS) continue;  // kernel dropped events; real code would re-dump
+        if (rc == -ENOBUFS) {
+            // Socket buffer overflowed: the kernel DROPPED events, so last_flags_
+            // may be stale. Recover by re-dumping the full link table; deliver()
+            // diffs each link against last_flags_ and reports any missed change.
+            rtnl_dump_links(
+                [](const rtnl_link* l, void* self) { static_cast<LinkMonitor*>(self)->deliver(*l); },
+                this);
+            continue;
+        }
         if (rc < 0) return;
     }
 }

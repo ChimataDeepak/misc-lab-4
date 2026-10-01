@@ -183,3 +183,31 @@ TEST_F(SocketpairTest, CtlTxnIdIsEightBitSkipsZeroAndNeverReusesLiveIds) {
               0);
     EXPECT_EQ(st, Status::QmiError);
 }
+
+// Review fix: a due timer cancelled by an earlier due timer's callback must NOT run.
+TEST(EventLoopTimers, CancelFromEarlierDueCallbackWins) {
+    mlab::EventLoop loop;
+    bool second_ran = false;
+    mlab::EventLoop::TimerId second = 0;
+    loop.add_timer(std::chrono::milliseconds(0), [&] { loop.cancel_timer(second); });
+    second = loop.add_timer(std::chrono::milliseconds(0), [&] { second_ran = true; });
+    loop.run_once(std::chrono::milliseconds(5));
+    loop.run_once(std::chrono::milliseconds(5));
+    EXPECT_FALSE(second_ran);
+}
+
+// Review fix: oversized TLV is rejected with QmiError, not silently truncated.
+TEST(QmiClientLimits, OversizedTlvRejected) {
+    mlab::EventLoop loop;
+    int sv[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv), 0);
+    mlab::QmiClient c(loop, sv[0]);
+    mlab::Status st = mlab::Status::Ok;
+    std::vector<mlab::Tlv> tlvs{{0x01, std::vector<uint8_t>(70000, 0xAB)}};
+    EXPECT_EQ(c.send_request(QMI_SVC_DMS, 1, 0x0023, tlvs,
+                             [&](const mlab::Reply& r) { st = r.status; },
+                             std::chrono::milliseconds(100)),
+              0);
+    EXPECT_EQ(st, mlab::Status::QmiError);
+    close(sv[1]);
+}

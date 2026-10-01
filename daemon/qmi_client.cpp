@@ -70,6 +70,16 @@ uint16_t QmiClient::send_request(uint8_t service, uint8_t client_id, uint16_t ms
                                  std::chrono::milliseconds timeout) {
     // Pick the next txn id, skipping 0 (reserved) and any id still in flight.
     // Bounded search: if every id is in flight (255 for CTL) we must not spin forever.
+    // Reject oversized TLVs up front: the wire length field is 16-bit, and our
+    // frame cap is QMI_MAX_FRAME. A silent uint16_t cast would truncate data.
+    for (const auto& t : tlvs) {
+        if (t.value.size() > QMI_MAX_FRAME) {
+            Reply r;
+            r.status = Status::QmiError;
+            cb(r);
+            return 0;
+        }
+    }
     uint16_t txn = 0;
     const unsigned space = service == QMI_SVC_CTL ? 256u : 65536u;
     for (unsigned tries = 0; tries < space; tries++) {

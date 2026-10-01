@@ -43,7 +43,15 @@ private:
     };
     int ep_;
     // shared_ptr so a handler can safely del_fd() itself mid-dispatch.
-    std::map<int, std::shared_ptr<FdHandler>> handlers_;
+    // Each registration gets a generation number, packed with the fd into
+    // epoll_event.data.u64. If a handler closes fd 7 and a new fd 7 is added in
+    // the same epoll_wait batch, the stale event's generation won't match.
+    struct Reg {
+        uint32_t gen;
+        std::shared_ptr<FdHandler> h;
+    };
+    std::map<int, Reg> handlers_;
+    uint32_t next_gen_ = 1;
     std::map<TimerId, Timer> timers_;
     TimerId next_timer_ = 1;
 };

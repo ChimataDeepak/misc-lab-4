@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 : "${DOCKER_HOST:=unix://$HOME/.rd/docker.sock}"; export DOCKER_HOST
 docker build -q -t misc-lab-4 . >/dev/null
-docker run --rm --cap-add NET_ADMIN --cap-add SYS_PTRACE misc-lab-4 bash -euo pipefail -c '
+docker run --rm -e REQUIRE_NET_ADMIN=1 --cap-add NET_ADMIN --cap-add SYS_PTRACE misc-lab-4 bash -euo pipefail -c '
   echo "===== build: -Wall -Wextra -Werror ====="
   cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMLAB_REQUIRE_LIBQMI=ON >/dev/null
   cmake --build build -j"$(nproc)" > build.log 2>&1 || { cat build.log; exit 1; }
